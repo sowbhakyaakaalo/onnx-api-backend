@@ -1,11 +1,21 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware  # ✅ ADD THIS LINE
 import numpy as np
 import onnxruntime as ort
 import cv2
 from io import BytesIO
 
 app = FastAPI()
+
+# ✅ ADD THIS CORS CONFIG BELOW app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # You can replace "*" with your Vercel URL for better security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Load ONNX model
 session = ort.InferenceSession("model_- 21 april 2025 15_58.onnx")
@@ -68,4 +78,5 @@ async def predict(file: UploadFile = File(...)):
     # Convert to JPEG
     _, img_encoded = cv2.imencode(".jpg", orig)
     return StreamingResponse(BytesIO(img_encoded.tobytes()), media_type="image/jpeg")
+
 
