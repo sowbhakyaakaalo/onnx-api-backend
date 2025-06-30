@@ -1,6 +1,7 @@
+
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware  # ✅ ADD THIS LINE
+from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 import onnxruntime as ort
 import cv2
@@ -8,10 +9,10 @@ from io import BytesIO
 
 app = FastAPI()
 
-# ✅ ADD THIS CORS CONFIG BELOW app = FastAPI()
+# Allow CORS for all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can replace "*" with your Vercel URL for better security
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,13 +71,20 @@ async def predict(file: UploadFile = File(...)):
         x1, y1, x2, y2 = boxes[i]
         class_name = class_names[class_ids[i]]
         conf = scores[i]
-        cv2.rectangle(orig, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        label = f"{class_name}: {conf:.2f}"
-        cv2.putText(orig, label, (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+        label = f"{class_name} ({conf:.2f})"
 
-    # Convert to JPEG
+        # Calculate label size and draw background rectangle
+        (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+        cv2.rectangle(orig, (x1, y1 - label_h - 10), (x1 + label_w + 10, y1), (0, 255, 0), -1)
+
+        # Draw the text label
+        cv2.putText(orig, label, (x1 + 5, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2)
+
+        # Draw bounding box
+        cv2.rectangle(orig, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    # Convert to JPEG and return
     _, img_encoded = cv2.imencode(".jpg", orig)
     return StreamingResponse(BytesIO(img_encoded.tobytes()), media_type="image/jpeg")
-
 
