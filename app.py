@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-session = ort.InferenceSession("model_21_april_2025_1558.onnx")
+session = ort.InferenceSession("model_- 21 april 2025 15_58.onnx")
 input_name = session.get_inputs()[0].name
 output_name = session.get_outputs()[0].name
 
