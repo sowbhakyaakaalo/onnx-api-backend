@@ -9,7 +9,6 @@ from io import BytesIO
 
 app = FastAPI()
 
-# Allow CORS for all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,12 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load ONNX model
 session = ort.InferenceSession("model_- 21 april 2025 15_58.onnx")
 input_name = session.get_inputs()[0].name
 output_name = session.get_outputs()[0].name
 
-# Load class names
 with open("classes.txt", "r") as f:
     class_names = [line.strip() for line in f.readlines()]
 
@@ -49,7 +46,7 @@ async def predict(file: UploadFile = File(...)):
     predictions = predictions[0]
 
     boxes, scores, class_ids = [], [], []
-    threshold = 0.6
+    threshold = 0.4
 
     for det in predictions:
         cx, cy, w, h = det[:4]
@@ -72,19 +69,11 @@ async def predict(file: UploadFile = File(...)):
         class_name = class_names[class_ids[i]]
         conf = scores[i]
         label = f"{class_name} ({conf:.2f})"
-
-        # Calculate label size and draw background rectangle
         (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
         cv2.rectangle(orig, (x1, y1 - label_h - 10), (x1 + label_w + 10, y1), (0, 255, 0), -1)
-
-        # Draw the text label
         cv2.putText(orig, label, (x1 + 5, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2)
-
-        # Draw bounding box
         cv2.rectangle(orig, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-    # Convert to JPEG and return
     _, img_encoded = cv2.imencode(".jpg", orig)
     return StreamingResponse(BytesIO(img_encoded.tobytes()), media_type="image/jpeg")
-
