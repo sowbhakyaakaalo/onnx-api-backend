@@ -1,9 +1,10 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 import onnxruntime as ort
 import cv2
+from io import BytesIO
 
 app = FastAPI()
 
@@ -15,10 +16,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Load your ONNX model
 session = ort.InferenceSession("model_- 21 april 2025 15_58.onnx")
 input_name = session.get_inputs()[0].name
 output_name = session.get_outputs()[0].name
 
+# Load class names
 with open("classes.txt", "r") as f:
     class_names = [line.strip() for line in f.readlines()]
 
@@ -28,12 +31,16 @@ async def predict(file: UploadFile = File(...)):
     npimg = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
-    orig_h, orig_w = img.shape[:2]
+    orig = img.copy()
+    orig_h, orig_w = orig.shape[:2]
+
+    # Preprocess
     img_resized = cv2.resize(img, (640, 640))
     img_input = img_resized.astype(np.float32)
     img_input = np.transpose(img_input, (2, 0, 1)) / 255.0
     img_input = np.expand_dims(img_input, axis=0)
 
+    # Inference
     outputs = session.run([output_name], {input_name: img_input})
     predictions = outputs[0]
 
@@ -60,16 +67,17 @@ async def predict(file: UploadFile = File(...)):
             scores.append(float(score))
             class_ids.append(class_id)
 
-    detections = []
+    # Draw detections
     for i in range(len(boxes)):
         x1, y1, x2, y2 = boxes[i]
         class_name = class_names[class_ids[i]]
         conf = scores[i]
-        detections.append({
-            "box": [x1, y1, x2, y2],
-            "class": class_name,
-            "score": round(conf, 2)
-        })
+        label = f"{class_name} ({conf:.2f})"
 
-    return JSONResponse(content={"detections": detections})
+        (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        cv2.rectangle(orig, (x1, y1 - label_h - 10), (x1 + label_w + 10, y1), (0, 255, 0), -1)
+        cv2.putText(orig, label, (x1 + 5, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+        cv2.rectangle(orig, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
+    _, img_encoded = cv2.imencode(".jpg", orig)
+    return StreamingResponse(BytesIO(img_encoded.tobytes()), media_type="image/jpeg")
